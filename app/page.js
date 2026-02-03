@@ -3,126 +3,290 @@
 import { useEffect, useMemo, useState } from "react";
 
 export default function Home() {
-  const [listings, setListings] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const [title, setTitle] = useState("");
-  const [price, setPrice] = useState("");
-  const [location, setLocation] = useState("");
+  const [mode, setMode] = useState("login");
+  const [remember, setRemember] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authName, setAuthName] = useState("");
+  const [authRole, setAuthRole] = useState("");
 
   const canSubmit = useMemo(() => {
-    const p = Number(price);
-    return title.trim() && location.trim() && Number.isFinite(p) && p >= 0;
-  }, [title, price, location]);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/listings", { cache: "no-store" });
-      const data = await res.json();
-      setListings(Array.isArray(data) ? data : []);
-    } finally {
-      setLoading(false);
+    if (mode === "signup") {
+      return authName.trim() && authEmail.includes("@") && authPassword.length >= 4;
     }
-  }
-
-  async function createListing(e) {
-    e.preventDefault();
-    if (!canSubmit) return;
-
-    const res = await fetch("/api/listings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: title.trim(),
-        price: Number(price),
-        location: location.trim()
-      })
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err?.error || "Failed to create listing");
-      return;
-    }
-
-    setTitle("");
-    setPrice("");
-    setLocation("");
-    await load();
-  }
+    return authEmail.includes("@") && authPassword.length >= 4;
+  }, [authEmail, authName, authPassword, mode]);
 
   useEffect(() => {
-    load();
+    const saved = window.localStorage.getItem("neko-session");
+    if (!saved) return;
+    try {
+      const session = JSON.parse(saved);
+      if (session?.email && session?.role) {
+        setAuthEmail(session.email);
+        setAuthRole(session.role);
+      }
+    } catch {
+      window.localStorage.removeItem("neko-session");
+    }
   }, []);
 
-  return (
-    <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 900, margin: "0 auto" }}>
-      <h1 style={{ marginBottom: 8 }}>Buy/Sell Platform (Turso Mini)</h1>
-      <p style={{ marginTop: 0, color: "#555" }}>
-        Endpoints: <code>/api/listings</code> (GET/POST), <code>/api/health</code>
-      </p>
+  function persistSession(email, role) {
+    if (!remember) return;
+    window.localStorage.setItem("neko-session", JSON.stringify({ email, role }));
+  }
 
-      <section style={{ marginTop: 20, padding: 16, border: "1px solid #ddd", borderRadius: 12 }}>
-        <h2 style={{ marginTop: 0 }}>Create Listing</h2>
-        <form onSubmit={createListing} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Title"
-            style={{ padding: 10, borderRadius: 10, border: "1px solid #ccc" }}
-          />
-          <input
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="Price"
-            inputMode="decimal"
-            style={{ padding: 10, borderRadius: 10, border: "1px solid #ccc" }}
-          />
-          <input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Location"
-            style={{ padding: 10, borderRadius: 10, border: "1px solid #ccc" }}
-          />
-          <button
-            type="submit"
-            disabled={!canSubmit}
+  function handleLogin(e) {
+    e.preventDefault();
+    const role =
+      authEmail.trim().toLowerCase() === "admin@demo.com" && authPassword === "admin"
+        ? "admin"
+        : "user";
+    setAuthRole(role);
+    persistSession(authEmail.trim(), role);
+  }
+
+  function handleSignup(e) {
+    e.preventDefault();
+    setAuthRole("user");
+    persistSession(authEmail.trim(), "user");
+  }
+
+  function handleLogout() {
+    setAuthRole("");
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthName("");
+    setRemember(false);
+    window.localStorage.removeItem("neko-session");
+  }
+
+  return (
+    <main
+      style={{
+        fontFamily: "system-ui",
+        padding: 24,
+        maxWidth: 960,
+        margin: "0 auto"
+      }}
+    >
+      <header style={{ marginBottom: 24 }}>
+        <p style={{ margin: 0, color: "#6b7280" }}>Smart Access Portal</p>
+        <h1 style={{ margin: "8px 0 0" }}>Login & Signup</h1>
+        <p style={{ margin: "8px 0 0", color: "#4b5563" }}>
+          ইমেইল দিয়ে লগইন করুন। রিমেম্বার মি অন থাকলে বার বার লগইন করতে হবে না।
+        </p>
+      </header>
+
+      {authRole ? (
+        <section
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 16,
+            padding: 24,
+            background: authRole === "admin" ? "#111827" : "#f8fafc",
+            color: authRole === "admin" ? "#f9fafb" : "#111827"
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+            <div>
+              <p style={{ margin: 0, textTransform: "uppercase", letterSpacing: 1 }}>
+                {authRole === "admin" ? "Admin Panel" : "User Panel"}
+              </p>
+              <h2 style={{ margin: "8px 0" }}>
+                {authRole === "admin" ? "Welcome, Admin" : "Welcome!"}
+              </h2>
+              <p style={{ margin: 0, color: authRole === "admin" ? "#9ca3af" : "#4b5563" }}>
+                Signed in as <strong>{authEmail}</strong>
+              </p>
+            </div>
+            <button
+              onClick={handleLogout}
+              style={{
+                alignSelf: "flex-start",
+                padding: "10px 16px",
+                borderRadius: 10,
+                border: "1px solid",
+                borderColor: authRole === "admin" ? "#374151" : "#cbd5f5",
+                background: authRole === "admin" ? "#1f2937" : "#e2e8f0",
+                color: authRole === "admin" ? "#f9fafb" : "#111827",
+                cursor: "pointer"
+              }}
+            >
+              Logout
+            </button>
+          </div>
+          <div
             style={{
-              padding: 10,
-              borderRadius: 10,
-              border: "1px solid #222",
-              background: canSubmit ? "#222" : "#777",
-              color: "white",
-              cursor: canSubmit ? "pointer" : "not-allowed"
+              marginTop: 20,
+              display: "grid",
+              gap: 16,
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))"
             }}
           >
-            Create
-          </button>
-        </form>
-      </section>
+            <div style={{ padding: 16, borderRadius: 12, background: "#ffffff" }}>
+              <h3 style={{ marginTop: 0 }}>Profile</h3>
+              <p style={{ margin: 0, color: "#4b5563" }}>
+                Manage account info, update your email, and secure your password.
+              </p>
+            </div>
+            <div style={{ padding: 16, borderRadius: 12, background: "#ffffff" }}>
+              <h3 style={{ marginTop: 0 }}>Notifications</h3>
+              <p style={{ margin: 0, color: "#4b5563" }}>
+                Choose which updates you want to receive in your inbox.
+              </p>
+            </div>
+            {authRole === "admin" ? (
+              <div style={{ padding: 16, borderRadius: 12, background: "#ffffff" }}>
+                <h3 style={{ marginTop: 0 }}>Admin Tools</h3>
+                <ul style={{ margin: 0, paddingLeft: 18, color: "#4b5563" }}>
+                  <li>User management</li>
+                  <li>Access control</li>
+                  <li>System reports</li>
+                </ul>
+              </div>
+            ) : (
+              <div style={{ padding: 16, borderRadius: 12, background: "#ffffff" }}>
+                <h3 style={{ marginTop: 0 }}>User Tools</h3>
+                <ul style={{ margin: 0, paddingLeft: 18, color: "#4b5563" }}>
+                  <li>View dashboard</li>
+                  <li>Support requests</li>
+                  <li>Activity history</li>
+                </ul>
+              </div>
+            )}
+          </div>
+        </section>
+      ) : (
+        <section
+          style={{
+            display: "grid",
+            gap: 24,
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))"
+          }}
+        >
+          <div
+            style={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 16,
+              padding: 20
+            }}
+          >
+            <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+              <button
+                onClick={() => setMode("login")}
+                style={{
+                  flex: 1,
+                  padding: 10,
+                  borderRadius: 10,
+                  border: "1px solid #111827",
+                  background: mode === "login" ? "#111827" : "#ffffff",
+                  color: mode === "login" ? "#ffffff" : "#111827",
+                  cursor: "pointer"
+                }}
+              >
+                Login
+              </button>
+              <button
+                onClick={() => setMode("signup")}
+                style={{
+                  flex: 1,
+                  padding: 10,
+                  borderRadius: 10,
+                  border: "1px solid #111827",
+                  background: mode === "signup" ? "#111827" : "#ffffff",
+                  color: mode === "signup" ? "#ffffff" : "#111827",
+                  cursor: "pointer"
+                }}
+              >
+                Signup
+              </button>
+            </div>
 
-      <section style={{ marginTop: 24 }}>
-        <h2>Latest Listings</h2>
-        {loading ? (
-          <p style={{ color: "#777" }}>Loading...</p>
-        ) : listings.length === 0 ? (
-          <p style={{ color: "#777" }}>No listings yet.</p>
-        ) : (
-          <ul style={{ paddingLeft: 18 }}>
-            {listings.map((x) => (
-              <li key={x.id ?? `${x.title}-${x.created_at}`} style={{ marginBottom: 8 }}>
-                <b>{x.title}</b> — {x.price} — {x.location}{" "}
-                {x.created_at ? (
-                  <span style={{ color: "#888" }}>
-                    ({new Date(x.created_at).toLocaleString()})
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+            <form
+              onSubmit={mode === "signup" ? handleSignup : handleLogin}
+              style={{ display: "grid", gap: 12 }}
+            >
+              {mode === "signup" ? (
+                <input
+                  value={authName}
+                  onChange={(e) => setAuthName(e.target.value)}
+                  placeholder="Full name"
+                  style={{ padding: 12, borderRadius: 10, border: "1px solid #d1d5db" }}
+                />
+              ) : null}
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="Email address"
+                style={{ padding: 12, borderRadius: 10, border: "1px solid #d1d5db" }}
+              />
+              <input
+                type="password"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                placeholder="Password"
+                style={{ padding: 12, borderRadius: 10, border: "1px solid #d1d5db" }}
+              />
+              <label style={{ display: "flex", alignItems: "center", gap: 8, color: "#4b5563" }}>
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />
+                Remember me
+              </label>
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                style={{
+                  padding: 12,
+                  borderRadius: 10,
+                  border: "1px solid #111827",
+                  background: canSubmit ? "#111827" : "#9ca3af",
+                  color: "white",
+                  cursor: canSubmit ? "pointer" : "not-allowed"
+                }}
+              >
+                {mode === "signup" ? "Create account" : "Login"}
+              </button>
+            </form>
+          </div>
+
+          <div
+            style={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 16,
+              padding: 20,
+              background: "#f8fafc"
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>Demo Credentials</h3>
+            <p style={{ marginBottom: 8, color: "#4b5563" }}>
+              Admin panel এর জন্য নিচের ইমেইল ব্যবহার করুন:
+            </p>
+            <div
+              style={{
+                background: "#ffffff",
+                borderRadius: 12,
+                padding: 12,
+                border: "1px dashed #cbd5f5"
+              }}
+            >
+              <p style={{ margin: 0 }}>
+                <strong>Email:</strong> admin@demo.com
+              </p>
+              <p style={{ margin: "6px 0 0" }}>
+                <strong>Password:</strong> admin
+              </p>
+            </div>
+            <p style={{ marginTop: 16, color: "#4b5563" }}>
+              User panel এ লগইন করতে চাইলে নিজের ইমেইল এবং পাসওয়ার্ড ব্যবহার করুন।
+            </p>
+          </div>
+        </section>
+      )}
     </main>
   );
-          }
+}
