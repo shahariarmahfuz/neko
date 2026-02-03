@@ -1,6 +1,6 @@
-"use client";
+import Link from "next/link";
 
-import { useEffect, useMemo, useState } from "react";
+export const dynamic = "force-dynamic";
 
 export default function Home() {
   const [mode, setMode] = useState("login");
